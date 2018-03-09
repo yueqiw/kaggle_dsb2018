@@ -2,6 +2,8 @@ import os, sys
 import skimage
 import numpy as np
 from pycocotools import mask as maskUtils
+from skimage import morphology
+from skimage.util import invert
 
 MASK_RNN_DIR = os.path.expanduser('~/Dropbox/lib/')
 sys.path.append(MASK_RNN_DIR)
@@ -49,7 +51,7 @@ class NucleiDataset(mrnn_utils.Dataset):
         self.image_info.append(image_info)
         return(len(self.image_info) - 1)
 
-    def load_mask(self, image_id):
+    def load_mask(self, image_id, fill_holes=True):
         """
         Returns:
         masks: A bool array of shape [height, width, instance count] with
@@ -66,6 +68,11 @@ class NucleiDataset(mrnn_utils.Dataset):
         mask_path_list = [x for x in os.listdir(mask_dir) if not x.startswith('.')]
         for mask_path in mask_path_list:
             m = skimage.io.imread(os.path.join(mask_dir, mask_path))
+            m[m.nonzero()] = 1
+            if fill_holes:
+                m = m.astype(bool)
+                m = morphology.remove_small_holes(m, 64, connectivity=1, in_place=True)
+                m = m.astype(np.uint8)
             instance_masks.append(m)
         class_ids = [1] * len(instance_masks)
 
@@ -73,7 +80,7 @@ class NucleiDataset(mrnn_utils.Dataset):
         class_ids = np.array(class_ids, dtype=np.int32)
         return mask, class_ids
 
-    def load_image(self, image_id):
+    def load_image(self, image_id, invert_dark=True, dark_threshold=100):
         """Load the specified image and return a [H,W,3] Numpy array.
         """
         # Load image
@@ -83,6 +90,11 @@ class NucleiDataset(mrnn_utils.Dataset):
             image = skimage.color.gray2rgb(image)
         elif image.shape[2] == 4:
             image = image[:,:,:3]
+        if invert_dark:
+            avg_inten = np.sum(image) / np.product(image.shape)
+            if avg_inten < dark_threshold:
+                image = invert(image)
+
         return image
 
     def get_int_id(self, str_id):

@@ -17,6 +17,7 @@ class NucleiConfig(Config):
     # the large side, and that determines the image shape.
     IMAGE_MIN_DIM = 1024
     IMAGE_MAX_DIM = 1024
+    INVERT_DARK = True
 
     # Use smaller anchors because our image and objects are small
     # This is in the scale of raw pixels.
