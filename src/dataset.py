@@ -5,6 +5,8 @@ from pycocotools import mask as maskUtils
 from skimage import morphology
 from skimage.util import invert
 
+import re
+
 MASK_RNN_DIR = os.path.expanduser('~/Dropbox/lib/')
 sys.path.append(MASK_RNN_DIR)
 import Mask_RCNN.utils as mrnn_utils
@@ -19,27 +21,90 @@ class NucleiDataset(mrnn_utils.Dataset):
         dataset_dir:
         subset: stage1_train, stage1_test
         """
-        self.add_class(source = "dsb", class_id = 1, class_name = "nuclei")
+        self.add_class(source = "dsb", class_id = 1, class_name = "nuc")
 
-        image_dir = os.path.join(dataset_dir, subset)
-        image_all = [x for x in os.listdir(image_dir) if not x.startswith('.')]
+        self.image_dir = os.path.join(dataset_dir, subset)
+        image_all = [x for x in os.listdir(self.image_dir) if not x.startswith('.')]
         if not image_ids is None:
             assert set(image_ids).issubset(image_all)
         else:
             image_ids = image_all
-
+        self.long_image_ids = list(image_ids)
         for i in image_ids:
             new_id = self.add_image(
                         source = "dsb",
                         image_id = i,
-                        path = os.path.join(image_dir, i, 'images', i + '.png'),
+                        path = os.path.join(self.image_dir, i, 'images', i + '.png'),
                         width = None,
                         height = None,
                         annotations = None,
-                        mask_dir = os.path.join(image_dir, i, 'masks')
+                        mask_dir = os.path.join(self.image_dir, i, 'masks')
                     )
             self.id_mapping_str2int[i] = new_id
 
+    def load_dataset_style_transfer(self, dataset_dir, mask_subset, transfer_subset,
+                                    content_ids,
+                                    content_clusters=None, style_clusters=None,
+                                    return_data=False):
+        """Load a subset of the nuclei dataset_dir
+        dataset_dir:
+        subset: stf_c-train_s-test_noseg_nosmooth, ...
+        content_ids: list of content img ids to filter
+        content_clusters: filter content clusters
+        style_clusters: filter style clusters
+        """
+        self.add_class(source = "dsb", class_id = 1, class_name = "nuc")
+        self.content_ids = list(content_ids)
+        transfer_dir = os.path.join(dataset_dir, transfer_subset)
+        self.transfer_dir = transfer_dir
+        mask_dir = os.path.join(dataset_dir, mask_subset)
+
+        self.stf_files = dict()
+        for dir_name, _, filenames in os.walk(transfer_dir):
+            if len(filenames) == 0:
+                continue
+            subdir = os.path.split(dir_name)[1]
+            if len(subdir) == 0:
+                continue
+            content_cls, style_cls = re.match(r'c([0-9]+)_s([0-9]+)', subdir).groups()
+            content_cls = int(content_cls)
+            style_cls = int(style_cls)
+            if not content_clusters is None:
+                if not content_cls in content_clusters:
+                    continue
+
+            if not style_clusters is None:
+                if not style_cls in style_clusters:
+                    continue
+
+            print(format("Loading: content %s - style %s" % (content_cls, style_cls)))
+            for fname in [f for f in filenames if f.endswith(".png")]:
+                fname = fname.rstrip(".png")
+                content_img, style_img = [x for x in re.findall(r'[a-zA-Z0-9]+', fname) if len(x)==64]
+                self.stf_files[fname] = {
+                    'full_path': os.path.join(dir_name, fname + ".png"),
+                    'content_img': content_img,
+                    'style_img': style_img,
+                    'content_cluster': content_cls,
+                    'style_cluster': style_cls
+                }
+        for fname in self.stf_files:
+            stf_info = self.stf_files[fname]
+            if not stf_info['content_img'] in self.content_ids:
+                pass
+            new_id = self.add_image(
+                        source = "dsb",
+                        image_id = fname,
+                        path = stf_info['full_path'],
+                        width = None,
+                        height = None,
+                        annotations = None,
+                        mask_dir = os.path.join(mask_dir, stf_info['content_img'], 'masks'),
+                        is_transfer = True,
+                        content = stf_info['content_img'],
+                        style = stf_info['style_img']
+                    )
+            self.id_mapping_str2int[fname] = new_id
 
     def add_image(self, source, image_id, path, **kwargs):
         image_info = {

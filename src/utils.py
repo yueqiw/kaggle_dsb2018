@@ -32,7 +32,7 @@ def generate_sample_ids(dataset_dir, split_type='random', val_ratio=0.15, seed=0
         print(format("spilt_type %s not implemented." % split_type))
 
 def collect_subclasses_from_folders(subclass_folder, original_image_folder):
-    """convert manually subclassed images into list.
+    """convert subclassed images into list.
     input_folder: the folder containing subfolders named as, e.g. "102_bw_small_bright1"
         each folder contains images belong to the same subclass.
     return:
@@ -48,9 +48,9 @@ def collect_subclasses_from_folders(subclass_folder, original_image_folder):
             "images": [x.rstrip(".png") for x in os.listdir(os.path.join(subclass_folder, subclass)) if not x.startswith(".")]
         }
     all_subclass_images = sum([x['images'] for x in subclass_dict.values()], [])
-    all_images = [x for x in os.listdir(original_image_folder) if not x.startswith('.')]
+    all_images = [x.rstrip(".png") for x in os.listdir(original_image_folder) if not x.startswith('.') and x.endswith(".png")]
     assert set(all_subclass_images) == set(all_images), \
-        "Images in manually subclassed folder do not match the original images."
+        "Images in subclassed folder do not match the original images."
 
     subclass_df = pd.DataFrame(sum([[{"subclass": key, "num_id": val['num_id'],
                                         "name":val['name'], 'image':x}
@@ -84,9 +84,9 @@ def move_only_images_to_folder(input_folder, output_folder):
     """
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
-    if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
-        print("Target folder not empty. Abort.")
-        return None
+    # if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
+    #     print("Target folder not empty. Abort.")
+    #     return None
     subfolders = [x for x in os.listdir(input_folder) if not x.startswith(".")]
     for s in subfolders:
         image_folder = os.path.join(input_folder, s, 'images')
@@ -106,6 +106,7 @@ def move_subclass_to_folder(input_folder, output_folder, subclass_df,
     return:
         None
     """
+    copy_func = shutil.copyfile if copy else shutil.move
     all_images = [x.rstrip(postfix) for x in os.listdir(input_folder) if x.endswith(postfix)]
     if not image_ids is None:
         assert set(image_ids).issubset(set(subclass_df.image))
@@ -115,14 +116,14 @@ def move_subclass_to_folder(input_folder, output_folder, subclass_df,
         data_use = subclass_df[subclass_df.image.isin(all_images)]
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
-    if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
-        print("Target folder not empty. Abort.")
-        return None
+    # if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
+    #     print("Target folder not empty. Abort.")
+    #     return None
     for i, row in data_use.iterrows():
         output_subfolder = os.path.join(output_folder, row['subclass'])
         if not os.path.exists(output_subfolder):
             os.mkdir(output_subfolder)
-        shutil.copyfile(os.path.join(input_folder, row['image'] + postfix),
+        copy_func(os.path.join(input_folder, row['image'] + postfix),
                         os.path.join(output_subfolder, row['image'] + postfix))
     print(format("%d files were copied from %s to %s" % (len(data_use), input_folder, output_folder)))
     return None
@@ -178,9 +179,9 @@ def generate_ground_truth(dataset_dir, dataset_name, output_folder,
 
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
-    if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
-        print("Target folder not empty. Abort.")
-        return None
+    # if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
+    #     print("Target folder not empty. Abort.")
+    #     return None
     dataset = NucleiDataset()
     dataset.load_dataset(dataset_dir, dataset_name, image_ids = images_use)
     dataset.prepare()
@@ -206,10 +207,69 @@ def generate_ground_truth(dataset_dir, dataset_name, output_folder,
     print(format("%d ground truth images generated in folder %s" % (len(dataset.image_ids), output_folder)))
     return
 
+def display_detection_masks(image, result, dataset=None, image_id=None, ground_truth=True,
+                proposals=True, avg_precision=None, recall=None, classnames=False, show=True, fill_holes=True):
+    """produce detection masks from nuclei detection results of a single image.
+    """
+
+    r = result
+    n_images = 2
+    if proposals:
+        n_images += 1
+    if ground_truth:
+        n_images += 1
+        gt_mask, gt_class_id = dataset.load_mask(image_id, fill_holes=fill_holes)
+        gt_bbox = mrnn_utils.extract_bboxes(gt_mask)
+
+    empty_classnames = ['','']
+    if classnames:
+        classnames_use = dataset.class_names
+    else:
+        classnames_use = empty_classnames
 
 
+    hw_ratio = image.shape[0] / image.shape[1]
+    if n_images == 2:
+        fig, axes = plt.subplots(1, 2, figsize=(20,10 * hw_ratio))
+    elif n_images == 3:
+        fig, axes = plt.subplots(1, 3, figsize=(30,10 * hw_ratio))
+    elif n_images == 4:
+        fig, axes = plt.subplots(2, 2, figsize=(20,20 * hw_ratio))
 
-def generate_detection_masks(dataset, results, output_folder, ground_truth=True, avg_precisions=None, image_ids=None, fill_holes=True):
+    axes = axes.ravel()
+    # original image
+    visualize.display_instances(image, np.array([]), np.array([]), np.array([]),
+                                empty_classnames, ax=axes[0], show=False, mask_alpha=0, verbose=False)
+
+    if proposals:
+        visualize.display_bbox(image, r['all_rois'], r['all_class_ids'],
+                        empty_classnames, None, ax=axes[1], show=False, verbose=False)
+
+    if ground_truth:
+        visualize.display_instances(image, gt_bbox, gt_mask, gt_class_id,
+                                    classnames_use, ax=axes[-2], show=False, mask_alpha=0, verbose=False)
+        axes[-2].set_title(format("ground truth: %d nuclei" % len(gt_class_id)), fontsize=20)
+
+    # detection results
+    visualize.display_instances(image, r['rois'], r['masks'], r['class_ids'],
+                                classnames_use, r['scores'], ax=axes[-1], show=False, mask_alpha=0, verbose=False)
+    avg_prec_str = ""
+    if not avg_precision is None:
+        avg_prec_str = format("AP: %.03f" % avg_precision)
+    recall_str = ""
+    if not recall is None:
+        recall_str = format("recall: %.03f" % recall)
+    axes[-1].set_title(format("detection: %d nuclei. %s %s" % (len(r['class_ids']), avg_prec_str, recall_str)), fontsize=20)
+
+    fig.tight_layout()
+    if show:
+        plt.show()
+    else:
+        return fig, axes
+
+
+def generate_detection_masks(dataset, results, output_folder, ground_truth=True,
+            proposals=True, avg_precisions=None, recalls=None, image_ids=None, classnames=False, fill_holes=True):
     """produce detection masks from nuclei detection results. White image files to output_folder
     dataset:
     detection_result: the result coming from running detection on the input dataset.
@@ -223,35 +283,24 @@ def generate_detection_masks(dataset, results, output_folder, ground_truth=True,
     empty_classnames = ['','']
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
-    if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
-        print("Target folder not empty. Abort.")
-        return None
+    # if len([x for x in os.listdir(output_folder) if not x.startswith(".")]) > 0:
+    #     print("Target folder not empty. Abort.")
+    #     return None
     for i, image_id in enumerate(image_ids_use):
-
         original_image = dataset.load_image(image_id)
-
-
         r = results[image_id]
-        hw_ratio = original_image.shape[0] / original_image.shape[1]
-        if ground_truth:
-            gt_mask, gt_class_id = dataset.load_mask(image_id, fill_holes=True)
-            gt_bbox = mrnn_utils.extract_bboxes(gt_mask)
-            fig, axes = plt.subplots(1, 3, figsize=(30,10 * hw_ratio))
-        else:
-            fig, axes = plt.subplots(1, 2, figsize=(20,10 * hw_ratio))
-        visualize.display_instances(original_image, np.array([]), np.array([]), np.array([]),
-                                    empty_classnames, ax=axes[0], show=False, mask_alpha=0, verbose=False)
-        if ground_truth:
-            visualize.display_instances(original_image, gt_bbox, gt_mask, gt_class_id,
-                                        empty_classnames, ax=axes[1], show=False, mask_alpha=0, verbose=False)
-            axes[1].set_title(format("ground truth: %d nuclei" % len(gt_class_id)), fontsize=20)
-        visualize.display_instances(original_image, r['rois'], r['masks'], r['class_ids'],
-                                    empty_classnames, r['scores'], ax=axes[-1], show=False, mask_alpha=0, verbose=False)
-        avg_prec_str = ""
         if not avg_precisions is None:
-            avg_prec_str = format("AP: %s" % avg_precisions[image_id])
-        axes[-1].set_title(format("detection: %d nuclei. %s" % (len(r['class_ids']), avg_prec_str)), fontsize=20)
-        fig.tight_layout()
+            avg_precision = avg_precisions[image_id]
+        else:
+            avg_precision = None
+        if not recalls is None:
+            recall = recalls[image_id]
+        else:
+            recall = None
+        fig, axes = display_detection_masks(original_image, r, dataset=dataset, image_id=image_id,
+                        ground_truth=ground_truth, proposals=proposals, avg_precision=avg_precision,
+                        recall=recall, show=False,
+                        classnames=classnames)
         fig.savefig(os.path.join(output_folder, dataset.image_info[image_id]['id'] + postfix), dpi=100)
         plt.close(fig)
         gc.collect()
@@ -422,7 +471,6 @@ def mAP_dsb2018(dataset, pred_results, image_ids, config=None, resize=False,
                 precision_func=nuclei_precision_simple, mask_overlaps_func=mask_overlaps_rle2):
     AP_all = dict()
     precisions_all = dict()
-    overlaps_all = dict()
     for image_id in image_ids:
         # Load image and ground truth data
         if resize is True:
@@ -434,14 +482,34 @@ def mAP_dsb2018(dataset, pred_results, image_ids, config=None, resize=False,
 
         r = pred_results[image_id]
         # Compute AP
-        AP, precisions, overlaps =\
+        AP, precisions, _ =\
         precision_func(gt_mask, gt_class_id,
                          r["masks"], r["class_ids"], r["scores"],
                          mask_overlaps_func=mask_overlaps_func)
         AP_all[image_id] = AP
         precisions_all[image_id] = precisions
-        overlaps_all[image_id] = overlaps
-    return(np.mean(list(AP_all.values())), AP_all, precisions_all, overlaps_all)
+    return(np.mean(list(AP_all.values())), AP_all, precisions_all)
+
+
+def mAP_bbox(dataset, pred_results, image_ids, iou_threshold=0.5):
+    AP_all = dict()
+    recalls_all = dict()
+    for image_id in image_ids:
+        # Load image and ground truth data
+        gt_mask, gt_class_id = dataset.load_mask(image_id, fill_holes=True)
+        gt_bbox = mrnn_utils.extract_bboxes(gt_mask)
+
+        r = pred_results[image_id]
+        # Compute AP
+        AP, _, _, _ =\
+        mrnn_utils.compute_ap(gt_bbox, gt_class_id,
+                         r["rois"], r["class_ids"], r["scores"],
+                         iou_threshold=iou_threshold)
+        recall, _ = mrnn_utils.compute_recall(r["rois"], gt_bbox,
+                         iou=iou_threshold)
+        AP_all[image_id] = AP
+        recalls_all[image_id] = recall
+    return(np.mean(list(AP_all.values())), AP_all, recalls_all)
 
 
 def remove_overlap(pred_masks, pred_scores):

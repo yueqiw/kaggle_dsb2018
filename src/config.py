@@ -1,4 +1,6 @@
-import os, sys
+import os, sys, json
+import pandas as pd
+import pickle, hashlib
 MASK_RNN_DIR = os.path.expanduser('~/Dropbox/lib/')
 sys.path.append(MASK_RNN_DIR)
 
@@ -9,6 +11,7 @@ class NucleiConfig(Config):
     NAME = 'nuclei'
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
+    WITH_FLOAT_MASKS = False # set True for mask voting.
 
     # Number of classes (including background)
     NUM_CLASSES = 1 + 1  # background + 1 class
@@ -43,7 +46,7 @@ class NucleiConfig(Config):
     MASK_SHAPE = [28, 28]
 
     # Maximum number of ground truth instances to use in one image
-    MAX_GT_INSTANCES = 100
+    MAX_GT_INSTANCES = 200
 
     STEPS_PER_EPOCH = 200
 
@@ -56,7 +59,11 @@ class NucleiConfig(Config):
     WEIGHT_DECAY = 0.0001
 
     # Max number of final detections
-    DETECTION_MAX_INSTANCES = 200
+    DETECTION_MAX_INSTANCES = 400
+    POST_NMS_ROIS_INFERENCE = 2000
+
+    # For diagnosis only. To extract all ROI proposals rather than the positive ones.
+    DETECTION_EXTRACT_ALL_PROPOSALS = True
 
     # Minimum probability value to accept a detected instance
     # ROIs below this threshold are skipped
@@ -64,3 +71,38 @@ class NucleiConfig(Config):
 
     # Non-maximum suppression threshold for detection
     DETECTION_NMS_THRESHOLD = 0.3
+
+    def to_string(self):
+        """Write Configuration values to a string"""
+        result = ""
+        for a in dir(self):
+            if not a.startswith("__") and not callable(getattr(self, a)):
+                result += "{:30} {}\n".format(a, getattr(self, a))
+        return result
+
+    def write_text(self, filename):
+        """Write Configuration values. for display only"""
+        with open(filename, 'w') as f:
+            for a in dir(self):
+                if not a.startswith("__") and not callable(getattr(self, a)):
+                    f.write("{:30} {}".format(a, getattr(self, a)))
+                    f.write("\n")
+
+    def to_dict(self):
+        """To dictionary"""
+        data = dict()
+        for a in dir(self):
+            if not a.startswith("__") and not callable(getattr(self, a)):
+                data[a] = getattr(self, a)
+        return data
+
+    def write_json(self, filename):
+        """Write Configuration values. cannot be reloaded."""
+        data = self.to_dict()
+        data_series = pd.Series(data)
+        data_series.to_json(filename)
+
+    def to_md5(self):
+        data_bytes = self.to_string().encode()
+        checksum = hashlib.md5(data_bytes).hexdigest()
+        return checksum
