@@ -62,7 +62,7 @@ class NucleiModel():
         """Write object to pickle. can be reloaded."""
         with open(filepath, 'wb') as f:
             pickle.dump(config, f, 2)
-        print(format("Config written to pickle file %s" % filepath))
+        #print(format("Config written to pickle file %s" % filepath))
         txtpath = filepath.replace(".pkl", ".txt")
         jsonpath = filepath.replace(".pkl", ".json")
         assert txtpath.endswith(".txt") and jsonpath.endswith(".json")
@@ -179,9 +179,14 @@ class NucleiModelTrain(NucleiModel):
             print("loading from: " + model_path)
             self.model.load_weights(model_path, by_name=True)
 
-        elif self.init_with == "checkpoint" or self.init_with == "nuclei-pretrained":
+        elif self.init_with == "checkpoint":
             # load a specific checkpoint
             model_path = os.path.join(self.model_root_dir, model_name, checkpoint + ".h5")
+            print("loading from: " + model_path)
+            self.model.load_weights(model_path, by_name=True)
+
+        elif self.init_with == "nuclei-pretrained":  # need to tranfer good models to /models
+            model_path = os.path.join(ROOT_DIR, "models", model_name, checkpoint + ".h5")
             print("loading from: " + model_path)
             self.model.load_weights(model_path, by_name=True)
 
@@ -352,7 +357,7 @@ class NucleiModelInference(NucleiModel):
                             for key, result in self.results.items()}
         with open(filepath, 'wb') as f:
             pickle.dump(result_small, f, 2)
-        print(format("Saved detection results to pickle file %s" % filepath))
+        #print(format("Saved detection results to pickle file %s" % filepath))
 
     def test_image_in_train(self, ):
         with open(self.train_dataset_path, 'r') as f:
@@ -369,7 +374,7 @@ class NucleiModelInference(NucleiModel):
             ground_truth = True
             self.mask_mAP, self.mask_APs, self.mask_prec_all = \
                     mAP_dsb2018(self.dataset_infer, self.results, self.dataset_infer.image_ids)
-            #TODO computer Prec vs Recall
+            #TODO compute Prec vs Recall
             self.bbox_mAP, self.bbox_APs, self.bbox_recalls = \
                     mAP_bbox(self.dataset_infer, self.results, self.dataset_infer.image_ids,
                                 iou_threshold=0.75)
