@@ -193,7 +193,7 @@ class NucleiModelTrain(NucleiModel):
         return None
 
 
-    def train_nuclei(self, epoch_list=[], layer_list=[], lr_list=[]):
+    def train_nuclei(self, epoch_list=[], layer_list=[], lr_list=[], checkpoint_every=2):
 
         self.epoch_list = epoch_list
         self.layer_list = layer_list
@@ -248,7 +248,8 @@ class NucleiModelTrain(NucleiModel):
                         epochs=epoch,
                         layers=layer,
                         augment_dataset=self.dataset_extra,
-                        augment_probability=self.augment_probability)
+                        augment_probability=self.augment_probability,
+                        checkpoint_every=checkpoint_every)
         return None
 
 
@@ -386,7 +387,7 @@ class NucleiModelInference(NucleiModel):
             ground_truth = True
             self.mask_mAP, self.mask_APs, self.mask_prec_all = \
                     mAP_dsb2018(self.dataset_infer, self.results, self.dataset_infer.image_ids)
-            #TODO compute Prec vs Recall
+
             self.bbox_mAP, self.bbox_APs, self.bbox_recalls = \
                     mAP_bbox(self.dataset_infer, self.results, self.dataset_infer.image_ids,
                                 iou_threshold=0.75)
@@ -397,18 +398,18 @@ class NucleiModelInference(NucleiModel):
             infer_df["bbox_APs"] = infer_df.image_id.map(self.bbox_APs)
             infer_df["bbox_recall"] = infer_df.image_id.map(self.bbox_recalls)
             infer_df.to_csv(self.evaluation_df_path)
-            mean_by_class = infer_df.groupby("subclass")[["mask_APs", "bbox_APs", "bbox_recall"]].mean()
-            mean_by_class.to_csv(self.evaluation_by_class_path)
+            self.mean_by_class = infer_df.groupby("subclass")[["mask_APs", "bbox_APs", "bbox_recall"]].mean()
+            self.mean_by_class.to_csv(self.evaluation_by_class_path)
 
             evaluation = {
                 "mask_mAP": self.mask_mAP,
-                "mask_mAP_class_avg": mean_by_class.mean(0)["mask_APs"],
+                "mask_mAP_class_avg": self.mean_by_class.mean(0)["mask_APs"],
                 "mask_APs": self.mask_APs,
                 "bbox_mAP": self.bbox_mAP,
-                "bbox_mAP_class_avg": mean_by_class.mean(0)["bbox_APs"],
+                "bbox_mAP_class_avg": self.mean_by_class.mean(0)["bbox_APs"],
                 "bbox_APs": self.bbox_APs,
                 "bbox_recalls": self.bbox_recalls,
-                "bbox_recalls_class_avg": mean_by_class.mean(0)["bbox_recall"],
+                "bbox_recalls_class_avg": self.mean_by_class.mean(0)["bbox_recall"],
                 "data_type": self.data_type,
                 "detection_masks": detection_masks
             }

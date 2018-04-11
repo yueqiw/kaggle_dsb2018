@@ -541,7 +541,7 @@ def nb_get_ax(rows=1, cols=1, size=8):
     return ax
 
 
-def rle_encode_all(dataset, pred_results, image_ids, with_shape=True):
+def rle_encode_all(dataset, pred_results, image_ids):
     rle_list = []
     for i, image_id in enumerate(image_ids):
         ori_id = dataset.image_info[image_id]['id']
@@ -553,11 +553,12 @@ def rle_encode_all(dataset, pred_results, image_ids, with_shape=True):
             rle = rle_encode(mask)
             if len(rle) == 0:
                 continue
-            rle_row = {'ImageId': ori_id, 'EncodedPixels': rle, 'Shape': format('%s %s' % mask.shape)}
+            rle_row = {'ImageId': ori_id, 'EncodedPixels': rle,
+                        'Shape': format('%s %s' % mask.shape),
+                        'Score': r['scores'][k],
+                        'Bbox': r['rois'][k,:]}
             rle_list.append(rle_row)
-    rle_df = pd.DataFrame(rle_list, columns=['ImageId', 'EncodedPixels', 'Shape'])
-    if not with_shape:
-        rle_df = rle_df[['ImageId', 'EncodedPixels']]
+    rle_df = pd.DataFrame(rle_list, columns=['ImageId', 'EncodedPixels', 'Shape', 'Score', 'Bbox'])
     return rle_df
 
 def rle_decode_all(dataset, rle_df):
