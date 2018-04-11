@@ -5,6 +5,7 @@ data/
 logs/
 models/
 notebooks/
+notebooks_aws/
 submission/
 .ipynb_checkpoints/
 *.zip
