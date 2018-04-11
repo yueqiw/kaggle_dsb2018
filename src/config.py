@@ -48,9 +48,9 @@ class NucleiConfig(Config):
     # Maximum number of ground truth instances to use in one image
     MAX_GT_INSTANCES = 200
 
-    STEPS_PER_EPOCH = int(200 / (GPU_COUNT * IMAGES_PER_GPU))
+    STEPS_PER_EPOCH = 200
 
-    VALIDATION_STEPS = int(25 / (GPU_COUNT * IMAGES_PER_GPU))
+    VALIDATION_STEPS = 25
 
     LEARNING_RATE = 0.001
     LEARNING_MOMENTUM = 0.9
