@@ -323,8 +323,13 @@ class NucleiModelInference(NucleiModel):
     def load_weights(self, model_name=None, checkpoint=None):
         # load a specific checkpoint
         model_path = os.path.join(self.model_root_dir, model_name, checkpoint + ".h5")
-        print("loading from: " + model_path)
-        self.model.load_weights(model_path, by_name=True)
+        try:
+            print("loading from: " + model_path)
+            self.model.load_weights(model_path, by_name=True)
+        except:
+            model_path = os.path.join(ROOT_DIR, "models", model_name, checkpoint + ".h5")
+            print("try loading from: " + model_path)
+            self.model.load_weights(model_path, by_name=True)
         return None
 
     def detect_nuclei(self, no_overlap=True):
