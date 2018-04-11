@@ -1,10 +1,13 @@
 # My gitignore
 
+logs
 data/
 logs/
+models/
 notebooks/
 submission/
 .ipynb_checkpoints/
+*.zip
 
 
 # Byte-compiled / optimized / DLL files
