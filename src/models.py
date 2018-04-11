@@ -267,12 +267,17 @@ class NucleiModelInference(NucleiModel):
 
         self.log_dir = os.path.join(self.model_root_dir, model_name)
         self.train_config_path = os.path.join(self.log_dir, "train_config.pkl")
-        self.train_config = self.load_train_config()
+        try:
+            self.train_config = self.load_train_config()
+            self.inference_config = self.update_config(self.train_config, config_dict)
+        except:
+            ori_config = NucleiConfig()
+            self.inference_config = self.update_config(ori_config, config_dict)
         try:
             self.architecture = self.train_config.architecture
         except:
             self.architecture = architecture
-        self.inference_config = self.update_config(self.train_config, config_dict)
+
         self.set_inference_dir()
         self.config_path = os.path.join(self.inference_dir, "inference_config.pkl")
 
