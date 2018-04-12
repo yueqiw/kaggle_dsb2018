@@ -1,7 +1,6 @@
 import os, sys
 import skimage
 import numpy as np
-from pycocotools import mask as maskUtils
 from skimage import morphology
 from skimage.util import invert
 
@@ -145,7 +144,7 @@ class NucleiDataset(mrnn_utils.Dataset):
         class_ids = np.array(class_ids, dtype=np.int32)
         return mask, class_ids
 
-    def load_image(self, image_id, invert_dark=True, dark_threshold=100):
+    def load_image(self, image_id, invert_dark=True, dark_threshold=120):
         """Load the specified image and return a [H,W,3] Numpy array.
         """
         # Load image
@@ -155,6 +154,11 @@ class NucleiDataset(mrnn_utils.Dataset):
             image = skimage.color.gray2rgb(image)
         elif image.shape[2] == 4:
             image = image[:,:,:3]
+        if not image.dtype == 'uint8':
+            image = skimage.img_as_ubyte(image)
+        if image[:100,:100].mean() == image[:100,:100,0].mean():
+            # white back img
+            dark_threshold += 20
         if invert_dark:
             avg_inten = np.sum(image) / np.product(image.shape)
             if avg_inten < dark_threshold:

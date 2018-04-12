@@ -327,6 +327,7 @@ class NucleiModelInference(NucleiModel):
         try:
             print("loading from: " + model_path)
             self.model.load_weights(model_path, by_name=True)
+
         except:
             alternative_model_path = os.path.join(ROOT_DIR, "models", model_name, checkpoint + ".h5")
             print("try loading from: " + alternative_model_path)
@@ -350,7 +351,9 @@ class NucleiModelInference(NucleiModel):
         self.save_dataset(self.dataset, self.infer_dataset_path)
 
         self.results = dict()
-        for image_id in self.dataset_infer.image_ids:
+        for i, image_id in enumerate(self.dataset_infer.image_ids):
+            if (i+1) % 500 == 0:
+                print("finished " + str(i))
             # Load image and ground truth data
             image = self.dataset_infer.load_image(image_id)
             # TODO: add test time augmentation

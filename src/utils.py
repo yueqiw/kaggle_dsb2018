@@ -5,6 +5,7 @@ import gc
 import matplotlib.pyplot as plt
 from pycocotools import mask as maskUtils
 from PIL import Image
+import skimage
 
 from sklearn.model_selection import train_test_split
 
@@ -36,14 +37,14 @@ def collect_subclasses_from_folders(subclass_folder, original_image_folder):
     input_folder: the folder containing subfolders named as, e.g. "102_bw_small_bright1"
         each folder contains images belong to the same subclass.
     return:
-        subclass_dict: {'102_bw_small_bright1': {'images':[...], 'name': 'bw_small_bright1', 'num_id':102}}
+        subclass_dict: {'102_bw_small_bright1': {'images':[...], 'name': 'bw_small_bright1', 'cluster_id':102}}
         subclass_df: dataframe output
     """
     subclass_dirs = [x for x in os.listdir(subclass_folder) if not x.startswith(".")]
     subclass_dict = dict()
     for subclass in subclass_dirs:
         subclass_dict[subclass] = {
-            "num_id": int(subclass.split("_")[0]),
+            "cluster_id": int(subclass.split("_")[0]),
             "name": "_".join(subclass.split("_")[1:]),
             "images": [x.rstrip(".png") for x in os.listdir(os.path.join(subclass_folder, subclass)) if not x.startswith(".")]
         }
@@ -52,7 +53,7 @@ def collect_subclasses_from_folders(subclass_folder, original_image_folder):
     assert set(all_subclass_images) == set(all_images), \
         "Images in subclassed folder do not match the original images."
 
-    subclass_df = pd.DataFrame(sum([[{"subclass": key, "num_id": val['num_id'],
+    subclass_df = pd.DataFrame(sum([[{"subclass": key, "cluster_id": val['cluster_id'],
                                         "name":val['name'], 'image':x}
                                         for x in val['images']] for key, val in subclass_dict.items()], []))
     return subclass_dict, subclass_df
@@ -75,7 +76,7 @@ def generate_stratified_sample_ids(subclass_df, image_ids=None, test_ratio=0.15,
         data_use = subclass_df
 
     train, test = train_test_split(data_use.image, test_size=0.15,
-                                  stratify=data_use.num_id, random_state=seed)
+                                  stratify=data_use.cluster_id, random_state=seed)
     return list(train.values), list(test.values)
 
 
@@ -622,3 +623,28 @@ def rle_decode(mask_rle, shape):
     for lo, hi in zip(starts, ends):
         img[lo:hi] = 1
     return img.reshape(shape, order='F')
+
+
+def load_image(image_path, invert_dark=True, dark_threshold=120):
+    """Load the specified image and return a [H,W,3] Numpy array.
+    same as in Dataset() class.
+    """
+    # Load image
+    image = skimage.io.imread(image_path)
+    # If grayscale. Convert to RGB for consistency.
+    if image.ndim < 3:
+        image = skimage.color.gray2rgb(image)
+    elif image.shape[2] == 4:
+        image = image[:,:,:3]
+    if not image.dtype == 'uint8':
+        image = skimage.img_as_ubyte(image)
+    threshold = dark_threshold
+    if image[:100,:100].mean() == image[:100,:100,0].mean():
+        # white back img
+        threshold += 20
+    if invert_dark:
+        avg_inten = np.sum(image) / np.product(image.shape)
+        if avg_inten < threshold:
+            image = skimage.util.invert(image)
+
+    return image
