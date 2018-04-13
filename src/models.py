@@ -336,7 +336,7 @@ class NucleiModelInference(NucleiModel):
             shutil.copyfile(alternative_model_path, model_path)
         return None
 
-    def detect_nuclei(self, no_overlap=True):
+    def detect_nuclei(self, no_overlap=True, batch_size=200):
         """Run detection model on datasets and return the results.
         """
 
@@ -350,27 +350,40 @@ class NucleiModelInference(NucleiModel):
         self.save_config(self.inference_config, self.config_path)
         self.save_dataset(self.dataset, self.infer_dataset_path)
 
-        self.results = dict()
-        for i, image_id in enumerate(self.dataset_infer.image_ids):
-            if (i+1) % 500 == 0:
-                print("finished " + str(i))
-            # Load image and ground truth data
-            image = self.dataset_infer.load_image(image_id)
-            # TODO: add test time augmentation
-            # Run object detection
-            r = self.model.detect([image], verbose=0)[0]
-            self.results[image_id] = r
-            if no_overlap:
-                if not len(r['scores']) == 0:
-                    r['masks'], overlaps = remove_overlap(r['masks'], r['scores'])
+        all_ids = self.dataset_infer.image_ids
+        n = batch_size
+        all_id_lists = [all_ids[i*n:(i+1)*n] for i in range(int((len(all_ids)-1)/n) + 1)]
+        rle_res_list = []
+        for i, id_list in enumerate(all_id_lists):
+            if i > 0:
+                print("Finished: " + str(i * n), end='\r')
+            self.results = dict()
+            for i, image_id in enumerate(id_list):
+                # Load image and ground truth data
+                image = self.dataset_infer.load_image(image_id)
+                # TODO: add test time augmentation
+                # Run object detection
+                r = self.model.detect([image], verbose=0)[0]
+                self.results[image_id] = r
+                if no_overlap:
+                    if not len(r['scores']) == 0:
+                        r['masks'], overlaps = remove_overlap(r['masks'], r['scores'])
 
-        self.save_results(self.results_path)
-        return self.results
+            self.save_results(self.results_path, postfix=str(i))
+            rle_res = rle_encode_all(self.dataset_infer, self.results, id_list)
+            rle_res_list.append(rle_res)
+        self.rle_results = pd.concat(rle_res_list)
+        self.rle_results.to_csv(self.rle_path)
+        self.rle_results[['ImageId', 'EncodedPixels']].to_csv(self.rle_path_submit, index=False)
+        print(format("Saved RLE results to %s" % self.rle_path))
+        return None
 
-    def save_results(self, filepath):
+    def save_results(self, filepath, postfix=""):
         """save roi's and class id's (and all proposals if returned)"""
         result_small = {key: {k:v for k, v in result.items() if not "masks" in k} \
                             for key, result in self.results.items()}
+        if len(postfix) > 0:
+            postfix = postfix[:-4] + '_' + postfix + '.pkl'
         with open(filepath, 'wb') as f:
             pickle.dump(result_small, f, 2)
         #print(format("Saved detection results to pickle file %s" % filepath))
@@ -381,7 +394,7 @@ class NucleiModelInference(NucleiModel):
         self.train_ids = self.train_dataset['train_ids']
         self.val_ids = self.train_dataset['val_ids']
 
-    def evaluate_results(self, detection_masks=True):
+    def evaluate_results(self, detection_masks=True, draw_proposals=False):
         if self.data_type == "test":
             ground_truth = False
             self.mask_APs = None
@@ -429,13 +442,10 @@ class NucleiModelInference(NucleiModel):
 
         if detection_masks:
             generate_detection_masks(self.dataset_infer, self.results, self.inference_dir,
-                    ground_truth=ground_truth, avg_precisions=self.mask_APs, recalls=self.bbox_recalls)
+                    ground_truth=ground_truth, proposals=draw_proposals, avg_precisions=self.mask_APs, recalls=self.bbox_recalls)
             move_subclass_to_folder(input_folder=self.inference_dir, copy=False,
                         output_folder=self.inference_dir, subclass_df=self.subclass_df)
-        self.rle_results = rle_encode_all(self.dataset_infer, self.results, self.dataset_infer.image_ids)
-        self.rle_results.to_csv(self.rle_path)
-        self.rle_results[['ImageId', 'EncodedPixels']].to_csv(self.rle_path_submit, index=False)
-        print(format("Saved RLE results to %s" % self.rle_path))
+
         return None
 
     #TODO save results and evaluations.

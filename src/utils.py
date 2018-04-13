@@ -269,7 +269,7 @@ def display_detection_masks(image, result, dataset=None, image_id=None, ground_t
         return fig, axes
 
 
-def generate_detection_masks(dataset, results, output_folder, ground_truth=True,
+def generate_detection_masks(dataset, results, output_folder, inv_dark = False, ground_truth=True,
             proposals=True, avg_precisions=None, recalls=None, image_ids=None, classnames=False, fill_holes=True):
     """produce detection masks from nuclei detection results. White image files to output_folder
     dataset:
@@ -288,7 +288,7 @@ def generate_detection_masks(dataset, results, output_folder, ground_truth=True,
     #     print("Target folder not empty. Abort.")
     #     return None
     for i, image_id in enumerate(image_ids_use):
-        original_image = dataset.load_image(image_id)
+        original_image = dataset.load_image(image_id, invert_dark=False)
         r = results[image_id]
         if not avg_precisions is None:
             avg_precision = avg_precisions[image_id]
