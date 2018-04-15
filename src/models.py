@@ -400,38 +400,44 @@ class NucleiModelInference(NucleiModel):
         self.train_ids = self.train_dataset['train_ids']
         self.val_ids = self.train_dataset['val_ids']
 
-    def evaluate_results(self, detection_masks=True, draw_proposals=False):
+    def evaluate_results(self, detection_masks=True, draw_proposals=False, do_bbox_mAP=False):
         if self.data_type == "test":
             ground_truth = False
             self.mask_APs = None
             self.bbox_recalls = None
         else:
             ground_truth = True
+            
             self.mask_mAP, self.mask_APs, self.mask_prec_all = \
                     mAP_dsb2018(self.dataset_infer, self.results, self.dataset_infer.image_ids)
 
-            self.bbox_mAP, self.bbox_APs, self.bbox_recalls = \
+            if do_bbox_mAP:
+                self.bbox_mAP, self.bbox_APs, self.bbox_recalls = \
                     mAP_bbox(self.dataset_infer, self.results, self.dataset_infer.image_ids,
                                 iou_threshold=0.75)
+
 
             infer_df = self.subclass_df[self.subclass_df.image.isin(self.infer_ids)]
             infer_df["image_id"] = infer_df.image.map(self.dataset_infer.get_int_id)
             infer_df["mask_APs"] = infer_df.image_id.map(self.mask_APs)
-            infer_df["bbox_APs"] = infer_df.image_id.map(self.bbox_APs)
-            infer_df["bbox_recall"] = infer_df.image_id.map(self.bbox_recalls)
+            variables = ["mask_APs"]
+            if do_bbox_mAP:
+                infer_df["bbox_APs"] = infer_df.image_id.map(self.bbox_APs)
+                infer_df["bbox_recall"] = infer_df.image_id.map(self.bbox_recalls)
+                variables = ["mask_APs", "bbox_APs", "bbox_recall"]
             infer_df.to_csv(self.evaluation_df_path)
-            self.mean_by_class = infer_df.groupby("subclass")[["mask_APs", "bbox_APs", "bbox_recall"]].mean()
+            self.mean_by_class = infer_df.groupby("subclass")[variables].mean()
             self.mean_by_class.to_csv(self.evaluation_by_class_path)
-
+            
             evaluation = {
                 "mask_mAP": self.mask_mAP,
                 "mask_mAP_class_avg": self.mean_by_class.mean(0)["mask_APs"],
                 "mask_APs": self.mask_APs,
-                "bbox_mAP": self.bbox_mAP,
-                "bbox_mAP_class_avg": self.mean_by_class.mean(0)["bbox_APs"],
-                "bbox_APs": self.bbox_APs,
-                "bbox_recalls": self.bbox_recalls,
-                "bbox_recalls_class_avg": self.mean_by_class.mean(0)["bbox_recall"],
+                "bbox_mAP": self.bbox_mAP if do_bbox_mAP else None,
+                "bbox_mAP_class_avg": self.mean_by_class.mean(0)["bbox_APs"] if do_bbox_mAP else None,
+                "bbox_APs": self.bbox_APs if do_bbox_mAP else None,
+                "bbox_recalls": self.bbox_recalls if do_bbox_mAP else None,
+                "bbox_recalls_class_avg": self.mean_by_class.mean(0)["bbox_recall"] if do_bbox_mAP else None,
                 "data_type": self.data_type,
                 "detection_masks": detection_masks
             }
@@ -439,11 +445,12 @@ class NucleiModelInference(NucleiModel):
                 pickle.dump(evaluation, f, 2)
 
             melted_df = pd.melt(infer_df, id_vars="subclass", var_name="metrics",
-                    value_vars=["mask_APs", "bbox_APs", "bbox_recall"])
+                    value_vars=variables)
             g = sns.factorplot(x="value", y="subclass",
                        col="metrics", data=melted_df, kind="swarm", palette="Set2",
-                       size=4, aspect=1)
+                       size=4, aspect=1.25)
             g.savefig(self.evaluation_figure_path)
+
 
 
         if detection_masks:

@@ -492,6 +492,7 @@ def mAP_dsb2018_parallel(dataset, pred_results, image_ids, config=None, resize=F
                 iou_threshold=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
                 precision_func=nuclei_precision_simple, mask_overlaps_func=mask_overlaps_rle2):
     num_cores = multiprocessing.cpu_count()
+    print(format("using %d cores for mAP calculation." % num_cores))
 
     AP_all = dict()
     precisions_all = dict()
