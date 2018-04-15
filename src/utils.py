@@ -7,6 +7,9 @@ from pycocotools import mask as maskUtils
 from PIL import Image
 import skimage
 
+from joblib import Parallel, delayed
+import multiprocessing
+
 from sklearn.model_selection import train_test_split
 
 MASK_RNN_DIR = os.path.expanduser('~/Dropbox/lib/')
@@ -466,10 +469,46 @@ def mAP_VOC_bbox(dataset, pred_results, image_ids, inference_config, iou_thresho
         APs.append(AP)
     return(np.mean(APs), APs, precisions, overlaps)
 
+def AP_dsb2018_single(dataset, pred_results, image_id, config=None, resize=False,
+                iou_threshold=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
+                precision_func=nuclei_precision_simple, mask_overlaps_func=mask_overlaps_rle2):
+    # Load image and ground truth data
+    if resize is True:
+        image, image_meta, gt_class_id, gt_bbox, gt_mask =\
+            mrnn_modellib.load_image_gt(dataset, config,
+                                   image_id, use_mini_mask=False)
+    else:
+        gt_mask, gt_class_id = dataset.load_mask(image_id, fill_holes=True)
+
+    r = pred_results[image_id]
+    # Compute AP
+    AP, precisions, _ =\
+    precision_func(gt_mask, gt_class_id,
+                     r["masks"], r["class_ids"], r["scores"],
+                     mask_overlaps_func=mask_overlaps_func)
+    return (AP, precisions)
+
+def mAP_dsb2018_parallel(dataset, pred_results, image_ids, config=None, resize=False,
+                iou_threshold=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
+                precision_func=nuclei_precision_simple, mask_overlaps_func=mask_overlaps_rle2):
+    num_cores = multiprocessing.cpu_count()
+
+    AP_all = dict()
+    precisions_all = dict()
+    result_list = Parallel(n_jobs=num_cores)(delayed(AP_dsb2018_single)(\
+                    dataset, pred_results, image_id, config, resize,
+                    iou_threshold, precision_func, mask_overlaps_func) \
+                    for image_id in image_ids)
+    for i, image_id in enumerate(image_ids):
+        AP_all[image_id] = result_list[i][0]
+        precisions_all[image_id] = result_list[i][0]
+    return(np.mean(list(AP_all.values())), AP_all, precisions_all)
 
 def mAP_dsb2018(dataset, pred_results, image_ids, config=None, resize=False,
                 iou_threshold=[0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95],
                 precision_func=nuclei_precision_simple, mask_overlaps_func=mask_overlaps_rle2):
+    num_cores = multiprocessing.cpu_count()
+
     AP_all = dict()
     precisions_all = dict()
     for image_id in image_ids:
@@ -489,6 +528,7 @@ def mAP_dsb2018(dataset, pred_results, image_ids, config=None, resize=False,
                          mask_overlaps_func=mask_overlaps_func)
         AP_all[image_id] = AP
         precisions_all[image_id] = precisions
+
     return(np.mean(list(AP_all.values())), AP_all, precisions_all)
 
 

@@ -95,11 +95,6 @@ class NucleiModelTrain(NucleiModel):
         self.model_root_dir = model_dir
         self.init_with = init_with
         self.model_name = model_name
-        self.augment_dataset = augment_dataset
-        self.augment_probability = augment_probability
-        self.content_clusters = content_clusters
-        self.style_clusters = style_clusters
-
 
         assert init_with in ["nuclei-pretrained", "r101-coco", "last", "checkpoint"]
         if init_with == "nuclei-pretrained" or init_with == "r101-coco":
@@ -122,7 +117,8 @@ class NucleiModelTrain(NucleiModel):
             #self.train_config.__setattr__("train_model_name", self.model_name)
             self.train_config_path = os.path.join(self.log_dir, "train_config.pkl")
 
-            self.set_dataset(train_ids, val_ids, dataset_id)
+            self.set_dataset(train_ids, val_ids, dataset_id,
+                            augment_dataset, augment_probability, content_clusters, style_clusters)
             self.dataset_path = os.path.join(self.log_dir, "train_dataset.json")
 
         elif init_with == "last" or init_with == "checkpoint":
@@ -141,13 +137,24 @@ class NucleiModelTrain(NucleiModel):
             self.val_ids = self.dataset['val_ids']
             self.dataset_id = self.dataset['train_set']
 
+            self.augment_dataset = self.dataset['augment_dataset']
+            self.augment_probability = self.dataset['augment_probability']
+            self.content_clusters = self.dataset['content_clusters']
+            self.style_clusters = self.dataset['style_clusters']
+
         self.train_config_dict = self.train_config.to_dict()
 
-    def set_dataset(self, train_ids, val_ids, dataset_id):
+    def set_dataset(self, train_ids, val_ids, dataset_id,
+                    augment_dataset, augment_probability, content_clusters, style_clusters):
         self.dataset = dict()
         self.dataset['train_set'] = self.dataset_id = dataset_id
         self.dataset['train_ids'] = self.train_ids = train_ids
         self.dataset['val_ids'] = self.val_ids = val_ids
+
+        self.dataset['augment_dataset'] = self.augment_dataset = augment_dataset
+        self.dataset['augment_probability'] = self.augment_probability = augment_probability
+        self.dataset['content_clusters'] = self.content_clusters = content_clusters
+        self.dataset['style_clusters'] = self.style_clusters = style_clusters
         return None
 
     def find_last_checkpoint(self, dir_name, prefix="mask_rcnn"):
@@ -158,7 +165,6 @@ class NucleiModelTrain(NucleiModel):
             return dir_name, None
         checkpoint = os.path.join(dir_name, checkpoints[-1])
         return checkpoint
-
 
 
     def load_weights(self, model_name=None, checkpoint=None):
