@@ -407,7 +407,7 @@ class NucleiModelInference(NucleiModel):
             self.bbox_recalls = None
         else:
             ground_truth = True
-            
+
             self.mask_mAP, self.mask_APs, self.mask_prec_all = \
                     mAP_dsb2018(self.dataset_infer, self.results, self.dataset_infer.image_ids)
 
@@ -428,7 +428,7 @@ class NucleiModelInference(NucleiModel):
             infer_df.to_csv(self.evaluation_df_path)
             self.mean_by_class = infer_df.groupby("subclass")[variables].mean()
             self.mean_by_class.to_csv(self.evaluation_by_class_path)
-            
+
             evaluation = {
                 "mask_mAP": self.mask_mAP,
                 "mask_mAP_class_avg": self.mean_by_class.mean(0)["mask_APs"],
@@ -448,7 +448,7 @@ class NucleiModelInference(NucleiModel):
                     value_vars=variables)
             g = sns.factorplot(x="value", y="subclass",
                        col="metrics", data=melted_df, kind="swarm", palette="Set2",
-                       size=4, aspect=1.25)
+                       size=4, aspect=1.25).set(xlim=(0, 1))
             g.savefig(self.evaluation_figure_path)
 
 

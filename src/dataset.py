@@ -80,6 +80,10 @@ class NucleiDataset(mrnn_utils.Dataset):
             for fname in [f for f in filenames if f.endswith(".png")]:
                 fname = fname.rstrip(".png")
                 content_img, style_img = [x for x in re.findall(r'[a-zA-Z0-9]+', fname) if len(x)==64]
+                if not content_img in self.content_ids:
+                    pass
+                if not style_img in self.content_ids:
+                    pass
                 self.stf_files[fname] = {
                     'full_path': os.path.join(dir_name, fname + ".png"),
                     'content_img': content_img,
@@ -89,8 +93,6 @@ class NucleiDataset(mrnn_utils.Dataset):
                 }
         for fname in self.stf_files:
             stf_info = self.stf_files[fname]
-            if not stf_info['content_img'] in self.content_ids:
-                pass
             new_id = self.add_image(
                         source = "dsb",
                         image_id = fname,
