@@ -193,8 +193,15 @@ class NucleiModelTrain(NucleiModel):
 
         elif self.init_with == "nuclei-pretrained":  # need to tranfer good models to /models
             model_path = os.path.join(ROOT_DIR, "models", model_name, checkpoint + ".h5")
-            print("loading from: " + model_path)
-            self.model.load_weights(model_path, by_name=True)
+
+            #print(model_path)
+            try:
+                print("loading from: " + model_path)
+                self.model.load_weights(model_path, by_name=True)
+            except:
+                alternative_model_path = os.path.join(self.model_root_dir, model_name, checkpoint + ".h5")
+                print("loading from: " + alternative_model_path)
+                self.model.load_weights(alternative_model_path, by_name=True)
 
         return None
 
@@ -330,6 +337,7 @@ class NucleiModelInference(NucleiModel):
     def load_weights(self, model_name=None, checkpoint=None):
         # load a specific checkpoint
         model_path = os.path.join(self.model_root_dir, model_name, checkpoint + ".h5")
+        #print(model_path)
         try:
             print("loading from: " + model_path)
             self.model.load_weights(model_path, by_name=True)

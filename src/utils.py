@@ -645,7 +645,7 @@ def rle_encode(img):
     if px_first > 0:
         runs[0] -= 1
         runs[1] += 1
-    if px_last > 0:
+    if px_last > 0 and len(runs) > 0:
         runs[-1] += 1
     return ' '.join(str(x) for x in runs)
 
